@@ -18,7 +18,7 @@
     "whatsapp-multi-device"
   ],
    "base": "https://github.com/DikaArdnt/Hisoka-Morou",
-  "author": "BERA",
+  "author": "Bera",
   "license": "MIT",
   "dependencies": {
     "@whiskeysockets/baileys": "git+https://github.com/whiskeysockets/baileys.git",
