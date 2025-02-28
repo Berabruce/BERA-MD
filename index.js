@@ -83,6 +83,18 @@ async function startBera() {
   let lastTextTime = 0;
   const messageDelay = 5000;
 
+  if (autobio === "true") {
+    setInterval(() => {
+      const date = new Date();
+      client.updateProfileStatus(
+        `${botname} is active 24/7\n\n${date.toLocaleString("en-US", { timeZone: "Africa/Nairobi" })} It's a ${date.toLocaleString("en-US", { weekday: "long", timeZone: "Africa/Nairobi" })}.`
+      );
+    }, 10 * 1000);
+  }
+
+  let lastTextTime = 0;
+  const messageDelay = 5000;
+
   // Handle incoming calls if anticall is enabled
   client.ev.on('call', async (callData) => {
     if (anticall === 'true') {
@@ -95,7 +107,7 @@ async function startBera() {
       const currentTime = Date.now();
       if (currentTime - lastTextTime >= messageDelay) {
         await client.sendMessage(callerId, {
-          text: '```*Bera Md Rejected the Call Because Owner Is Busy. Please Text instead*```.',
+          text: anticallmsg
         });
         lastTextTime = currentTime;
       } else {
@@ -104,7 +116,58 @@ async function startBera() {
     }
   });
 
-let msgBera = m.message.extendedTextMessage?.contextInfo?.quotedMessage;
+  client.ev.on("messages.upsert", async (chatUpdate) => {
+    try {
+      const mek = chatUpdate.messages[0];
+      if (!mek.message) return;
+      mek.message = mek.message.ephemeralMessage?.message || mek.message;
+
+      if (autoview === "true" && mek.key?.remoteJid === "status@broadcast") {
+        await client.readMessages([mek.key]);
+      } else if (autoread === "true" && mek.key?.remoteJid.endsWith("@s.whatsapp.net")) {
+        await client.readMessages([mek.key]);
+      }
+      if (autoview === 'true' && autolike === 'true' && mek.key && mek.key.remoteJid === "status@broadcast") {
+        const Beralike = await client.decodeJid(client.user.id);
+        const emojis = ['😂', '😥', '😇', '🥹', '💥', '💯', '🔥', '💫', '👽', '💗', '❤️‍🔥', '👁️', '👀', '🙌', '🙆', '🌟', '💧', '🎇', '🎆', '♂️', '✅'];
+        const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+        const delayMessage = 3000;
+        await client.sendMessage(mek.key.remoteJid, {
+          react: {
+            text: randomEmoji,
+            key: mek.key,
+          }
+        }, { statusJidList: [mek.key.participant, Beralike] });
+        await sleep(delayMessage);
+      }
+
+      if (mek.key?.remoteJid.endsWith("@s.whatsapp.net")) {
+        const presenceType = presence === "online" ? "available" : presence === "typing" ? "composing" : presence === "recording" ? "recording" : "unavailable";
+        await client.sendPresenceUpdate(presenceType, mek.key.remoteJid);
+      }
+
+      if (!client.public && !mek.key.fromMe && chatUpdate.type === "notify") return;
+
+      const m = smsg(client, mek, store);
+
+      // Command Handler Logic
+      const body = m.mtype === "conversation" ? m.message.conversation :
+        m.mtype === "imageMessage" ? m.message.imageMessage.caption :
+          m.mtype === "extendedTextMessage" ? m.message.extendedTextMessage.text : "";
+
+      const cmd = body.startsWith(prefix);
+      const args = body.trim().split(/ +/).slice(1);
+      const pushname = m.pushName || "No Name";
+      const botNumber = await client.decodeJid(client.user.id);
+      const isBotMessage = m.sender === botNumber;  
+      const itsMe = m.sender === botNumber;
+      const text = args.join(" ");
+      const isOwner = dev.split(",").map(v => v.replace(/[^0-9]/g, "") + "@s.whatsapp.net").includes(m.sender);
+      const Tag = m.mtype === "extendedTextMessage" && m.message.extendedTextMessage.contextInfo != null
+        ? m.message.extendedTextMessage.contextInfo.mentionedJid
+        : [];
+
+      let msgBera = m.message.extendedTextMessage?.contextInfo?.quotedMessage;
       let budy = typeof m.text === "string" ? m.text : "";
 
       const timestamp = speed();
@@ -127,176 +190,172 @@ let msgBera = m.message.extendedTextMessage?.contextInfo?.quotedMessage;
       const color = (text, color) => {
         return color ? chalk.keyword(color)(text) : chalk.green(text);
       };
-  // Auto react if enabled
-  if (autoreact === 'true') {
-    client.ev.on("messages.upsert", async (chatUpdate) => {
-      try {
-        const mek = chatUpdate.messages[0];
-        if (!mek || !mek.message) return;
 
-        const reactEmojis = ['✅', '♂️', '🎆', '🎇', '💧', '🌟', '🙆', '🙌', '👀', '👁️', '❤️‍🔥', '💗', '👽', '💫', '🔥', '💯', '💥', '😇', '😥', '😂', '👋'];
+      const mime = quoted.mimetype || "";
+      const qmsg = quoted;
 
-        if (!mek.key.fromMe && reactEmojis.length > 0) {
-          const randomEmoji = reactEmojis[Math.floor(Math.random() * reactEmojis.length)];
-          await client.sendMessage(mek.key.remoteJid, {
-            react: {
-              text: randomEmoji,
-              key: mek.key,
-            },
+      const DevBera = dev.split(",");
+      const Owner = DevBera.map(v => v.replace(/[^0-9]/g, "") + "@s.whatsapp.net").includes(m.sender);
+
+      const groupMetadata = m.isGroup ? await client.groupMetadata(m.chat).catch(() => {}) : "";
+      const groupName = m.isGroup && groupMetadata ? groupMetadata.subject : "";
+      const participants = m.isGroup && groupMetadata ? groupMetadata.participants : [];
+      const groupAdmin = m.isGroup ? getGroupAdmins(participants) : [];
+      const isBotAdmin = m.isGroup ? groupAdmin.includes(botNumber) : false;
+      const isAdmin = m.isGroup ? groupAdmin.includes(m.sender) : false;
+
+      const IsGroup = m.chat?.endsWith("@g.us");
+       
+      const context = {
+        client, m, text, isBotMessage, Owner, chatUpdate, store, isBotAdmin, isOwner, isAdmin, IsGroup,
+        participants, pushname, body, budy, totalCommands, args, mime, qmsg, msgKeith, botNumber, itsMe, packname,
+        author, generateProfilePicture, groupMetadata, Beraspeed, mycode, fetchJson, exec, antibad, getRandom, UploadFileUgu,
+        TelegraPh, prefix, cmd, botname, mode, antitag, antilink, antidelete, antionce, fetchBuffer,
+        store, uploadtoimgur, chatUpdate, ytmp3, getGroupAdmins, Tag
+      };
+
+
+      // Antilink Logic
+      const forbiddenLinkPattern = /https?:\/\/[^\s]+/;
+      if (body && forbiddenLinkPattern.test(body) && m.isGroup && antilink === 'true' && !isOwner && isBotAdmin && !isAdmin) {
+        if (itsMe) return;
+
+        const kid = m.sender;
+
+        await client.sendMessage(m.chat, {
+          text: `🚫link detected🚫\n\n@${kid.split("@")[0]}, do not send links!`,
+          contextInfo: { mentionedJid: [kid] }
+        }, { quoted: m });
+
+        await client.sendMessage(m.chat, {
+          delete: {
+            remoteJid: m.chat,
+            fromMe: false,
+            id: m.key.id,
+            participant: kid
+          }
+        });
+
+        if (!isBotAdmin) {
+          await client.sendMessage(m.chat, {
+            text: `Please promote me to an admin to remove @${kid.split("@")[0]} for sharing link.`,
           });
+        } else {
+          await client.groupParticipantsUpdate(m.chat, [kid], 'remove');
         }
-      } catch (error) {
-        console.error('Error processing message:', error);
       }
-    });
-  }
 
-  // Auto bio update
-  if (autobio === 'true') {
-    setInterval(() => {
-      const date = new Date();
-      client.updateProfileStatus(
-        `${botname} is active 24/7\n\n${date.toLocaleString('en-US', { timeZone: 'Africa/Nairobi' })} It's a ${date.toLocaleString('en-US', { weekday: 'long', timeZone: 'Africa/Nairobi' })}.`
-      );
-    }, 10 * 1000);
-  }
+      // Antibad Word Logic
+      const forbiddenWords = [
+        'kuma',
+        'mafi',
+        'kumbavu',
+        'ngombe',
+        'fala',
+        'asshole',
+        'cunt',
+        'cock',
+        'slut',
+        'fag'
+        'umbwa'
+        'mrija'
+      ];
 
-  // Handle incoming messages and auto read/auto view features
-  client.ev.on("messages.upsert", async (chatUpdate) => {
-    try {
-      let mek = chatUpdate.messages[0];
-      if (!mek.message) return;
-      mek.message = Object.keys(mek.message)[0] === "ephemeralMessage" ? mek.message.ephemeralMessage.message : mek.message;
+      if (body && forbiddenWords.some(word => body.toLowerCase().includes(word))) {
+        if (m.isGroup && antibad === 'true') {
+          if (isBotAdmin && !isOwner && !isAdmin) {
+            const kid = m.sender;
 
- if (autoview === 'true' && autolike === 'true' && mek.key && mek.key.remoteJid === "status@broadcast") {
+            await client.sendMessage(m.chat, {
+              text: `🚫bad word detected 🚫\n\n@${kid.split("@")[0]}, do not send offensive words!`,
+              contextInfo: { mentionedJid: [kid] }
+            }, { quoted: m });
 
-const bruce = await client.decodeJid(client.user.id);
+            await client.sendMessage(m.chat, {
+              delete: {
+                remoteJid: m.chat,
+                fromMe: false,
+                id: m.key.id,
+                participant: kid
+              }
+            });
 
-if (mek.status) return;
+            await client.groupParticipantsUpdate(m.chat, [kid], 'remove');
+            await client.updateBlockStatus(kid, 'block');
+          }
+        } else if (!m.isGroup && antibad === 'true') {
+          const kid = m.sender;
+          await client.updateBlockStatus(kid, 'block');
+        }
+      }
 
-await client.sendMessage(mek.key.remoteJid, { react: { key: mek.key, text: '❤️‍🔥'}}, { statusJidList: [mek.key.participant, bruce] });
-}
+      if (cmd && mode === "private" && !itsMe && !isOwner && m.sender !== daddy) return;
 
-
-            if (autoview === 'true' && mek.key && mek.key.remoteJid === "status@broadcast") { 
-         await client.readMessages([mek.key]);}
-else if (autoread === 'true' && mek.key && mek.key.remoteJid.endsWith('@s.whatsapp.net')) { 
-
-await client.readMessages([mek.key]);
-
-}
-
-if (mek.key && mek.key.remoteJid.endsWith('@s.whatsapp.net')) { 
-
-
-const Chat = mek.key.remoteJid;
-if(presence === 'online')
-
-            {await client.sendPresenceUpdate("available",Chat);}
-            else if(presence === 'typing')
-            {await client.sendPresenceUpdate("composing",Chat);}
-            else if(presence === 'recording')
-            {
-            await client.sendPresenceUpdate("recording", Chat);
-            }
-            else
-            {
-                await client.sendPresenceUpdate("unavailable", Chat);
-            }
-}
-
-
-      if (!client.public && !mek.key.fromMe && chatUpdate.type === "notify") return;
-      
-      m = smsg(client, mek, store);
-      require("./Bera")(client, m, chatUpdate, store);
+      const command = cmd ? body.replace(prefix, "").trim().split(/ +/).shift().toLowerCase() : null;
+      if (command) {
+        const commandObj = commands[command];
+        if (commandObj) {
+          await commandObj.execute({ client, m, text, totalCommands, prefix, groupAdmin, getGroupAdmins, args, groupName, groupMetadata, participants, isOwner, pushname, botNumber, itsMe, store, isAdmin, isBotAdmin });
+        }
+      }
     } catch (err) {
-      console.log(err);
+      console.error("Error processing message:", err);
     }
   });
 
   process.on("unhandledRejection", (reason, promise) => {
-    console.log("Unhandled Rejection at:", promise, "reason:", reason);
+    console.error("Unhandled Rejection at:", promise, "reason:", reason);
   });
 
-  process.on("rejectionHandled", (promise) => {
-    unhandledRejections.delete(promise);
-  });
-
-  process.on("uncaughtException", function (err) {
-    console.log("Caught exception: ", err);
+  process.on("Something went wrong", (err) => {
+    console.error("Caught exception:", err);
   });
 
   client.decodeJid = (jid) => {
     if (!jid) return jid;
     if (/:\d+@/gi.test(jid)) {
-      let decode = jidDecode(jid) || {};
+      const decode = jidDecode(jid) || {};
       return (decode.user && decode.server && decode.user + "@" + decode.server) || jid;
-    } else return jid;
+    }
+    return jid;
   };
 
-  client.getName = (jid, withoutContact = false) => {
-    id = client.decodeJid(jid);
-    withoutContact = client.withoutContact || withoutContact;
-    let v;
-    if (id.endsWith("@g.us"))
-      return new Promise(async (resolve) => {
-        v = store.contacts[id] || {};
-        if (!(v.name || v.subject)) v = client.groupMetadata(id) || {};
-        resolve(v.name || v.subject || PhoneNumber("+" + id.replace("@s.whatsapp.net", "")).getNumber("international"));
-      });
-    else
-      v =
-        id === "0@s.whatsapp.net"
-          ? {
-              id,
-              name: "WhatsApp",
-            }
-          : id === client.decodeJid(client.user.id)
-          ? client.user
-          : store.contacts[id] || {};
-    return (withoutContact ? "" : v.name) || v.subject || v.verifiedName || PhoneNumber("+" + jid.replace("@s.whatsapp.net", "")).getNumber("international");
+  client.getName = async (jid) => {
+    const id = client.decodeJid(jid);
+    if (id.endsWith("@g.us")) {
+      const group = store.contacts[id] || (await client.groupMetadata(id)) || {};
+      return group.name || group.subject || PhoneNumber("+" + id.replace("@s.whatsapp.net", "")).getNumber("international");
+    }
+    const contact = store.contacts[id] || {};
+    return contact.name || contact.subject || contact.verifiedName || PhoneNumber("+" + id.replace("@s.whatsapp.net", "")).getNumber("international");
   };
 
   client.public = true;
   client.serializeM = (m) => smsg(client, m, store);
 
-  client.ev.on("group-participants.update", async (m) => {
-    groupEvents(client, m);
-  });
+  client.ev.on("group-participants.update", (m) => groupEvents(client, m));
 
   client.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === "close") {
-      let reason = new Boom(lastDisconnect?.error)?.output.statusCode;
-      if (reason === DisconnectReason.badSession) {
-        console.log(`Bad Session File, Please Delete Session and Scan Again`);
+      const reason = new Boom(lastDisconnect?.error)?.output.statusCode;
+      const reasons = {
+        [DisconnectReason.badSession]: "Bad Session File, Please Delete Session and Scan Again",
+        [DisconnectReason.connectionClosed]: "Connection closed, reconnecting...",
+        [DisconnectReason.connectionLost]: "Connection Lost from Server, reconnecting...",
+        [DisconnectReason.connectionReplaced]: "Connection Replaced, Another New Session Opened, Please Restart Bot",
+        [DisconnectReason.loggedOut]: "Device Logged Out, Please Delete File creds.json and Scan Again",
+        [DisconnectReason.restartRequired]: "Restart Required, Restarting...",
+        [DisconnectReason.timedOut]: "Connection TimedOut, Reconnecting...",
+      };
+      console.log(reasons[reason] || `Unknown DisconnectReason: ${reason}`);
+      if (reason === DisconnectReason.badSession || reason === DisconnectReason.connectionReplaced || reason === DisconnectReason.loggedOut) {
         process.exit();
-      } else if (reason === DisconnectReason.connectionClosed) {
-        console.log("Connection closed, reconnecting....");
-        startBera();
-      } else if (reason === DisconnectReason.connectionLost) {
-        console.log("Connection Lost from Server, reconnecting...");
-        startBera();
-      } else if (reason === DisconnectReason.connectionReplaced) {
-        console.log("Connection Replaced, Another New Session Opened, Please Restart Bot");
-        process.exit();
-      } else if (reason === DisconnectReason.loggedOut) {
-        console.log(`Device Logged Out, Please Delete File creds.json and Scan Again.`);
-        process.exit();
-      } else if (reason === DisconnectReason.restartRequired) {
-        console.log("Restart Required, Restarting...");
-        startBera();
-      } else if (reason === DisconnectReason.timedOut) {
-        console.log("Connection TimedOut, Reconnecting...");
-        startBera();
       } else {
-        console.log(`Unknown DisconnectReason: ${reason}|${connection}`);
         startBera();
       }
     } else if (connection === "open") {
-      console.log(`✅ Connection successful\nLoaded ${totalCommands} commands.\nBot is active.`);
-client.groupAcceptInvite("DvXonepPp1XBPOYIBziTl1");
+      await client.groupAcceptInvite("DvXonepPp1XBPOYIBziTl1");
       console.log(`✅ Connection successful\nLoaded ${totalCommands} commands.\nBot is active.`);
 
       const getGreeting = () => {
@@ -320,19 +379,49 @@ client.groupAcceptInvite("DvXonepPp1XBPOYIBziTl1");
     }
   });
 
- 
-
   client.ev.on("creds.update", saveCreds);
-  client.sendText = (jid, text, quoted = "", options) => client.sendMessage(jid, { text: text, ...options }, { quoted });
+
+  client.sendText = (jid, text, quoted = "", options) => client.sendMessage(jid, { text, ...options }, { quoted });
+
+  client.downloadMediaMessage = async (message) => {
+    const mime = (message.msg || message).mimetype || "";
+    const messageType = message.mtype ? message.mtype.replace(/Message/gi, "") : mime.split("/")[0];
+    const stream = await downloadContentFromMessage(message, messageType);
+    let buffer = Buffer.from([]);
+    for await (const chunk of stream) {
+      buffer = Buffer.concat([buffer, chunk]);
+    }
+    return buffer;
+  };
+
+  client.downloadAndSaveMediaMessage = async (message, filename, attachExtension = true) => {
+    const quoted = message.msg || message;
+    const mime = (message.msg || message).mimetype || "";
+    const messageType = message.mtype ? message.mtype.replace(/Message/gi, "") : mime.split("/")[0];
+    const stream = await downloadContentFromMessage(quoted, messageType);
+    let buffer = Buffer.from([]);
+    for await (const chunk of stream) {
+      buffer = Buffer.concat([buffer, chunk]);
+    }
+    const type = await FileType.fromBuffer(buffer);
+    const trueFileName = attachExtension ? `${filename}.${type.ext}` : filename;
+    await fs.writeFileSync(trueFileName, buffer);
+    return trueFileName;
+  };
 }
 
 app.use(express.static("public"));
-
-app.get("/", (req, res) => {
-  res.sendFile(__dirname + "/index.html");
-});
-
+app.get("/", (req, res) => res.sendFile(__dirname + "/index.html"));
 app.listen(port, () => console.log(`Server listening on port http://localhost:${port}`));
 
-// Authentication and Session Fix
-authenticateSession().then(() => startBera());
+startBera();
+
+module.exports = startBera;
+
+let file = require.resolve(__filename);
+fs.watchFile(file, () => {
+  fs.unwatchFile(file);
+  console.log(chalk.redBright(`Update ${__filename}`));
+  delete require.cache[file];
+  require(file);
+});
