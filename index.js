@@ -104,6 +104,29 @@ async function startBera() {
     }
   });
 
+let msgBera = m.message.extendedTextMessage?.contextInfo?.quotedMessage;
+      let budy = typeof m.text === "string" ? m.text : "";
+
+      const timestamp = speed();
+      const Beraspeed = speed() - timestamp;
+
+      const getGroupAdmins = (participants) => {
+        let admins = [];
+        for (let i of participants) {
+          if (i.admin === "superadmin") admins.push(i.id);
+          if (i.admin === "admin") admins.push(i.id);
+        }
+        return admins || [];
+      };
+
+      const bruce = m.quoted || m;
+      const quoted = bruce.mtype === 'buttonsMessage' ? bruce[Object.keys(bruce)[1]] :
+        bruce.mtype === 'templateMessage' ? bruce.hydratedTemplate[Object.keys(bruce.hydratedTemplate)[1]] :
+          bruce.mtype === 'product' ? bruce[Object.keys(bruce)[0]] : m.quoted ? m.quoted : m;
+
+      const color = (text, color) => {
+        return color ? chalk.keyword(color)(text) : chalk.green(text);
+      };
   // Auto react if enabled
   if (autoreact === 'true') {
     client.ev.on("messages.upsert", async (chatUpdate) => {
