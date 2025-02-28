@@ -44,26 +44,12 @@ function findAllCommandFiles(directory) {
 // Get all command files and their count
 const { commandFiles, totalCommands } = findAllCommandFiles(cmdsDir);
 
-// Load the commands into an object, including their metadata (description, aliases, reaction)
+// Load the commands into an object
 const commands = {};
 commandFiles.forEach(file => {
   const commandName = path.basename(file, '.js'); // Extract command name from the file name
   const commandModule = require(file); // Load the command module
-
-  // Add metadata (aliases, description, reaction) to each command
-  commands[commandName] = {
-    execute: commandModule,
-    description: commandModule.description || "No description provided.",
-    aliases: commandModule.aliases || [],
-    reaction: commandModule.reaction || null, // Reaction type (if any)
-  };
-
-  // Register aliases for the command
-  if (commandModule.aliases && Array.isArray(commandModule.aliases)) {
-    commandModule.aliases.forEach(alias => {
-      commands[alias] = commands[commandName];
-    });
-  }
+  commands[commandName] = commandModule; // Store the command in the commands object
 });
 
 // Export the loaded commands and the total command count
