@@ -9,7 +9,7 @@ function delay(ms) {
 
 // Function to show loading animation
 async function loading(m, client) {
-  const loadingSymbols = ["💜", "⚔️", "💖", "🖤", "💙", "💚"];
+  const loadingSymbols = ["💜", "🤗", "❤️‍🔥","💖", "😂", "🖤","🙂‍↔️", "💚"];
   let { key } = await client.sendMessage(m.chat, { text: '*ITS HIGH TIME FOR YOU TO GO HIGH WITH BERA MD.....*' });
 
   // Run the loading animation without blocking the main code
