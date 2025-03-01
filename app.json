@@ -40,7 +40,7 @@
     },
     "ANTICALL": {
       "description": "Type true if you want the bot to decline unnecessary calls ",
-      "value": "true",
+      "value": "false",
       "required": false
     },
     "PM_PERMIT": {
